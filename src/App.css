@@ -1,8 +1,10 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%; /* Mantenha */
+  min-height: 100vh; /* Faz o root ocupar a altura da tela */
+  display: flex; /*Torna o root um container flex */
+  justify-content: center; /* Centraliza o filho (TodoList) horizontalmente */
+  align-items: center; /* Centraliza o filho (TodoList) verticalmente */
+  /* padding: 2rem; */ /* Mantenha comentado/removido, a menos que queira espaçamento GERAL */
 }
 
 .logo {

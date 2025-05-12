@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/Button.jsx";
 import { Input } from "@/components/ui/input.jsx";
-
+import { Checkbox } from "@/components/ui/checkbox.jsx"; // 1. Importar Checkbox
+// Importar ícones se for usar no futuro
+import { Trash2, Edit, Save, XCircle } from 'lucide-react';
 export default function TodoList() {
   // Estado para rastrear se o carregamento inicial foi concluído
   const [isLoading, setIsLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState("");
-
-  // --- Hook para CARREGAR tarefas do localStorage ---
+  const [filter, setFilter] = useState('all'); // Estado para o filtro ('all', 'active', 'completed')
+  const [editingTaskId, setEditingTaskId] = useState(null); // Se usar edição
+  const [editText, setEditText] = useState(""); // Se usar edição
+  const editInputRef = useRef(null); // Se usar edição
   useEffect(() => {
     console.log("Effect: Carregando tarefas...");
     const saved = localStorage.getItem('minhas-tarefas');
@@ -69,68 +73,159 @@ export default function TodoList() {
     );
   };
 
+  // ... (imports, estados, outros hooks) ...
+
   const removeTask = (id) => {
-    setTasks(tasks.filter(task => task.id !== id));
+    // Encontra a tarefa para mostrar o texto na confirmação
+    const taskToRemove = tasks.find(task => task.id === id);
+    // Pede confirmação ao usuário
+    if (window.confirm(`Tem certeza que deseja remover a tarefa "${taskToRemove?.text || ''}"?`)) {
+      setTasks(tasks.filter(task => task.id !== id));
+    }
   };
 
+  // --- Funções de Edição ---
+  const startEditing = (task) => {
+    setEditingTaskId(task.id);
+    setEditText(task.text);
+    // Foca no input após a renderização
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  };
+
+  const cancelEditing = () => {
+    setEditingTaskId(null);
+    setEditText("");
+  };
+
+  const saveEditing = (id) => {
+    if (!editText.trim()) {
+      // Opcional: ou remover a tarefa se o texto ficar vazio?
+      alert("O texto da tarefa não pode ficar vazio.");
+      editInputRef.current?.focus(); // Foca novamente
+      return;
+    }
+    setTasks(
+      tasks.map(task =>
+        task.id === id ? { ...task, text: editText.trim() } : task
+      )
+    );
+    cancelEditing(); // Sai do modo de edição
+  };
+
+  const handleEditKeyDown = (event, id) => {
+    if (event.key === 'Enter') {
+      saveEditing(id);
+    } else if (event.key === 'Escape') {
+      cancelEditing();
+    }
+  };
+// ... (restante do componente) ...
+  // --- Lógica de Filtragem ---
+  
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'active') return !task.done;
+    if (filter === 'completed') return task.done;
+    return true; // 'all'
+  });
   // --- JSX para renderização ---
   return (
-    <div className="max-w-md mx-auto mt-10 p-4 shadow-xl bg-white dark:bg-zinc-900 rounded-2xl">
+    <div className="max-w-md mx-auto p-4 shadow-xl bg-white dark:bg-zinc-900 rounded-2xl border-2">
       <h1 className="text-2xl font-bold mb-4 text-center dark:text-white">📋 To-Do List</h1>
-      <div className="flex gap-2 mb-4">
+      <div className="flex justify-center gap-2 mb-4">
         <Input
           value={newTask}
           onChange={(e) => setNewTask(e.target.value)}
           placeholder="Nova tarefa"
-          className="flex-1"
+          className=""
           onKeyPress={(e) => e.key === 'Enter' && addTask()} // Adiciona com Enter
           disabled={isLoading} // Desabilita input durante carregamento inicial
         />
         <Button onClick={addTask} disabled={isLoading}>Adicionar</Button>
       </div>
 
+      <div className="flex justify-center gap-2 mb-4">
+        <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>Todas</Button>
+        <Button variant={filter === 'active' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('active')}>Ativas</Button>
+        <Button variant={filter === 'completed' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('completed')}>Concluídas</Button>
+      </div>
+
       {isLoading && ( // Mostra indicador de carregamento
         <p className="text-center text-zinc-500 mt-4">Carregando tarefas...</p>
       )}
 
-      {!isLoading && ( // Mostra lista ou mensagem de "sem tarefas" apenas após carregar
+{!isLoading && (
         <ul className="mt-4 space-y-2">
           <AnimatePresence>
-            {tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <motion.li
-                key={task.id} // Usa ID único como chave
-                layout // Anima mudanças de layout
+                key={task.id}
+                layout
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -50, transition: { duration: 0.2 } }}
-                className={`flex items-center justify-between p-3 rounded-lg shadow-sm bg-zinc-100 dark:bg-zinc-800 transition duration-200 ease-in-out ${task.done ? 'opacity-60' : ''}`}
+                // Ajustado gap para acomodar mais botões
+                className={`flex items-center gap-2 p-3 rounded-lg shadow-sm bg-zinc-100 dark:bg-zinc-800 transition duration-200 ease-in-out ${task.done ? 'opacity-60' : ''}`}
               >
-                <span
-                  onClick={() => toggleTask(task.id)}
-                  className={`cursor-pointer flex-1 mr-2 break-words ${task.done ? 'line-through text-zinc-500 dark:text-zinc-400' : 'text-zinc-800 dark:text-zinc-200'}`}
-                >
-                  {task.text}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon" // Tamanho de ícone
-                  className="text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 h-8 w-8" // Estilo do botão de remover
-                  onClick={() => removeTask(task.id)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
-                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
-                  </svg>
-                </Button>
+                
+                {editingTaskId === task.id ? (
+                  // --- Modo de Edição ---
+                  <>
+                    <Input
+                      ref={editInputRef}
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => handleEditKeyDown(e, task.id)}
+                      className="flex-1 h-8" // Ajustar altura se necessário
+                      autoFocus // Foca automaticamente ao entrar em edição
+                    />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-green-600 hover:text-green-700" onClick={() => saveEditing(task.id)}>
+                      <Save className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-red-600 hover:text-red-700" onClick={cancelEditing}>
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                 // --- Modo de Visualização ---
+                 <>
+                 <Checkbox
+                   id={`task-${task.id}`}
+                   checked={task.done}
+                   onCheckedChange={() => toggleTask(task.id)}
+                   className="shrink-0"
+                 />
+                 <span
+                   onDoubleClick={() => startEditing(task)} // Duplo clique para editar
+                   className={`cursor-pointer flex-1 break-words ml-2 ${task.done ? 'line-through text-zinc-500 dark:text-zinc-400' : 'text-zinc-800 dark:text-zinc-200'}`}
+                   title="Clique duplo para editar" // Dica
+                 >
+                   {task.text}
+                 </span>
+                 <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-blue-600 hover:text-blue-700" onClick={() => startEditing(task)}>
+                   <Edit className="h-4 w-4" />
+                 </Button>
+                 <Button
+                   variant="ghost"
+                   size="icon"
+                   className="text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 h-6 w-6 shrink-0"
+                   onClick={() => removeTask(task.id)}
+                 >
+                <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </motion.li>
             ))}
           </AnimatePresence>
         </ul>
       )}
-
-      {!isLoading && tasks.length === 0 && ( // Mostra apenas se não estiver carregando e não houver tarefas
-        <p className="text-center text-zinc-500 mt-4">Nenhuma tarefa adicionada ainda.</p>
-      )}
+     {!isLoading && filteredTasks.length === 0 && (
+   <p className="text-center text-zinc-500 mt-4">
+     {filter === 'completed' ? 'Nenhuma tarefa concluída.' : // <-- USADO AQUI
+      filter === 'active' ? 'Nenhuma tarefa ativa.' : // <-- USADO AQUI
+      'Nenhuma tarefa adicionada ainda.'}
+   </p>
+ )}
     </div>
   );
 }
